@@ -1,0 +1,7 @@
+---
+# 整体包install时会执行这个脚本
+MainScript: "test.sh"
+# 需要打包的文件的列表
+AllFile:
+  - test1.txt
+  - test2.txt
