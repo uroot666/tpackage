@@ -48,7 +48,7 @@ func main() {
 			ReadYaml()
 			// 将template.yaml 里面记录的文件都打包到整体包中，并且包含tpackage本身
 			// 顺序是 tpackage + 诺干需要打包的文件 + main脚本文件 + 8个字节存储template.yaml的长度
-			WriteFile()
+			WritePackege()
 		case "install":
 			// 创建解压目录
 			err := os.Mkdir(UnPackDir, os.ModePerm)
@@ -66,6 +66,7 @@ func main() {
 	}
 }
 
+// ReadYaml 读取template.yaml 配置
 func ReadYaml() (err error) {
 	var fd *os.File
 	// 打开template.yaml文件
@@ -87,7 +88,8 @@ func ReadYaml() (err error) {
 	return
 }
 
-func WriteFile() {
+// WritePackege 拼接整体包
+func WritePackege() {
 	// 获取tpackage可执行文件的文件名,用于打进整体包时使用
 	path, _ := os.Executable()
 	_, BinScript := filepath.Split(path)
@@ -96,9 +98,9 @@ func WriteFile() {
 	// 将main脚本名称放到切片中
 	ty.AllFile = append(ty.AllFile, ty.MainScript)
 	// 创建整体包的空文件
+	DelFile(AllPackageName, true)
 	fd, _ := os.OpenFile(AllPackageName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 	defer fd.Close()
-
 	// 读取包含了所有文件名的切片，将文件写入到整体包中，并记录文件的大小到map中
 	for _, fileName := range ty.AllFile {
 		t_fd, _ := os.Open(fileName)
@@ -115,6 +117,7 @@ func WriteFile() {
 	_ = binary.Write(fd, binary.LittleEndian, int64(n))
 }
 
+// ReadPackege 读取整体包
 func ReadPackege() {
 	// 获取整体包的名称
 	path, _ := os.Executable()
@@ -207,4 +210,33 @@ func init() {
 	} else {
 		cmd.Parse(os.Args[2:])
 	}
+}
+
+// DelFile path为文件确定是否删除，如果为文件夹则退出脚本手动删除文件才行
+func DelFile(path string, del bool) bool {
+	s, err := os.Stat(path)
+	// 文件夹存在
+	if err == nil {
+		if s.IsDir() {
+			fmt.Println(path, "存在且为文件夹,需手动删除")
+			os.Exit(1)
+		} else {
+			fmt.Println(path, "存在且为文件")
+			if del {
+				err = os.Remove(path)
+				if err != nil {
+					fmt.Println(path, "删除文件失败")
+				} else {
+					fmt.Println(path, "删除成功")
+				}
+			}
+		}
+		return true
+	}
+	// 文件夹不存在
+	if os.IsNotExist(err) {
+		return false
+	}
+	// 不确定文件/文件夹是否存在
+	return false
 }
