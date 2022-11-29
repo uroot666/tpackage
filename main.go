@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -53,39 +54,36 @@ func main() {
 			// 创建解压目录
 			err := os.Mkdir(UnPackDir, os.ModePerm)
 			if err != nil {
-				fmt.Println(err)
+				log.Panic(err)
 			}
 			// 将build步骤中的所有文件都读取出来，并执行main脚本
 			ReadPackege()
 		default:
-			fmt.Println("参数不对, build 或者 install")
+			log.Println("参数不对, build 或者 install")
 		}
 		return
 	} else {
-		fmt.Println("缺少参数, build 或者 install")
+		log.Println("缺少参数, build 或者 install")
 	}
 }
 
 // ReadYaml 读取template.yaml 配置
-func ReadYaml() (err error) {
+func ReadYaml() {
 	var fd *os.File
 	// 打开template.yaml文件
-	fd, _ = os.Open(tyYaml)
+	fd, err := os.Open(tyYaml)
 	if err != nil {
-		fmt.Println("打开yaml失败")
-		return
+		log.Panic("打开yaml失败")
 	}
 	defer fd.Close()
 
 	// 读取template.yaml文件
 	b, err := ioutil.ReadAll(fd)
 	if err != nil {
-		fmt.Println("解析yaml失败")
-		return
+		log.Panic("解析yaml失败")
 	}
 	// template.yaml文件内容解析到ty这个全局变量中
 	yaml.Unmarshal(b, &ty)
-	return
 }
 
 // WritePackege 拼接整体包
@@ -99,18 +97,27 @@ func WritePackege() {
 	ty.AllFile = append(ty.AllFile, ty.MainScript)
 	// 创建整体包的空文件
 	DelFile(AllPackageName, true)
-	fd, _ := os.OpenFile(AllPackageName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
+	fd, err := os.OpenFile(AllPackageName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
+	if err != nil {
+		log.Panic("打开空整体包文件失败")
+	}
 	defer fd.Close()
 	// 读取包含了所有文件名的切片，将文件写入到整体包中，并记录文件的大小到map中
 	for _, fileName := range ty.AllFile {
 		t_fd, _ := os.Open(fileName)
 		tb, _ := ioutil.ReadAll(t_fd)
-		n, _ := fd.Write(tb)
+		n, err := fd.Write(tb)
+		if err != nil {
+			log.Panic(fileName, "写入到整体包失败")
+		}
 		ty.AllFileSize = append(ty.AllFileSize, map[string]int{fileName: n})
 	}
 
 	// 将所有文件的大小信息记录到template.yaml的变量中，并将此变量转换为yaml文件写入到整体包中
-	t_yaml, _ := yaml.Marshal(&ty)
+	t_yaml, err := yaml.Marshal(&ty)
+	if err != nil {
+		log.Panic("new template.yaml 写入整体包失败")
+	}
 	n, _ := fd.Write(t_yaml)
 	ty.AllFileSize = append(ty.AllFileSize, map[string]int{"new-template.yaml": n})
 	// 将新template.yaml的长度序列化到整体包最后的8个bit中，一个int64的对象理论上存储文件长度肯定够了
@@ -129,7 +136,7 @@ func ReadPackege() {
 	// 偏移到文件倒数第八个字符，将template.yaml的长度从这里面反序列化出来
 	fd.Seek(-8, io.SeekEnd)
 	if err := binary.Read(fd, binary.LittleEndian, &size); err != nil {
-		fmt.Println(err)
+		log.Panic(err)
 	}
 
 	// 偏移到template.yaml开始的地方，读取出yaml内容
@@ -163,10 +170,10 @@ func ReadPackege() {
 	// 执行main 脚本
 	out, err := exec.Command(fmt.Sprintf("%s/%s", UnPackDir, NewYaml.MainScript)).Output()
 	if err != nil {
-		fmt.Println(err)
+		log.Panic(err)
 		return
 	}
-	fmt.Println(string(out))
+	log.Println(string(out))
 }
 
 // init 程序执行前的步骤，目前只放置了flag二级子命令的逻辑
@@ -218,16 +225,16 @@ func DelFile(path string, del bool) bool {
 	// 文件夹存在
 	if err == nil {
 		if s.IsDir() {
-			fmt.Println(path, "存在且为文件夹,需手动删除")
+			log.Panic(path, "存在且为文件夹,需手动删除")
 			os.Exit(1)
 		} else {
-			fmt.Println(path, "存在且为文件")
+			log.Println(path, "存在且为文件")
 			if del {
 				err = os.Remove(path)
 				if err != nil {
-					fmt.Println(path, "删除文件失败")
+					log.Panic(path, "删除文件失败")
 				} else {
-					fmt.Println(path, "删除成功")
+					log.Println(path, "删除成功")
 				}
 			}
 		}
