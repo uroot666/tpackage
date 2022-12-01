@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"tpackage/tgz"
 
 	"gopkg.in/yaml.v3"
 )
@@ -40,6 +41,10 @@ type MyFlagSet struct {
 }
 
 func main() {
+	t := tgz.NewTgzPacker()
+	// fmt.Println(t.Pack("/Users/admin/Go/src/github.com/uroot666/tpackage/abc/", "abc.tgz"))
+	t.UnPack("abc.tgz", "123")
+	os.Exit(0)
 	args := os.Args
 	if len(args) != 1 {
 		// tpackage以及整体包都走的逻辑，build就生成整体包，install就执行整体包
