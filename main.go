@@ -25,6 +25,8 @@ var (
 	AllPackageName string
 	// template.yaml 文件路径
 	tyYaml string
+	// tgz对象
+	tg *tgz.TgzPacker
 )
 
 // TemplateYmal 用于解析 template.yaml
@@ -41,10 +43,6 @@ type MyFlagSet struct {
 }
 
 func main() {
-	t := tgz.NewTgzPacker()
-	// fmt.Println(t.Pack("/Users/admin/Go/src/github.com/uroot666/tpackage/abc/", "abc.tgz"))
-	t.UnPack("abc.tgz", "123")
-	os.Exit(0)
 	args := os.Args
 	if len(args) != 1 {
 		// tpackage以及整体包都走的逻辑，build就生成整体包，install就执行整体包
@@ -108,14 +106,24 @@ func WritePackege() {
 	}
 	defer fd.Close()
 	// 读取包含了所有文件名的切片，将文件写入到整体包中，并记录文件的大小到map中
-	for _, fileName := range ty.AllFile {
-		t_fd, _ := os.Open(fileName)
+	for index, fileName := range ty.AllFile {
+		// tpackage可执行程序是排在第0个，这个不压缩，其它的都压缩后赋予新的文件名
+		NewFileName := ""
+		if index == 0 {
+			NewFileName = fileName
+		} else {
+			NewFileName = fileName + ".tgz"
+			tg.Pack(fileName, NewFileName)
+		}
+		t_fd, _ := os.Open(NewFileName)
 		tb, _ := ioutil.ReadAll(t_fd)
 		n, err := fd.Write(tb)
 		if err != nil {
 			log.Panic(fileName, "写入到整体包失败")
+		} else if index != 0 {
+			os.RemoveAll(NewFileName)
 		}
-		ty.AllFileSize = append(ty.AllFileSize, map[string]int{fileName: n})
+		ty.AllFileSize = append(ty.AllFileSize, map[string]int{NewFileName: n})
 	}
 
 	// 将所有文件的大小信息记录到template.yaml的变量中，并将此变量转换为yaml文件写入到整体包中
@@ -166,6 +174,12 @@ func ReadPackege() {
 				tfd, _ = os.OpenFile(UnPackDir+"/"+filename, os.O_CREATE|os.O_WRONLY, 0666)
 			}
 			tfd.Write(tb)
+			if index != 0 {
+				if err := tg.UnPack(UnPackDir+"/"+filename, UnPackDir); err != nil {
+					log.Panic(err)
+				}
+			}
+			os.RemoveAll(UnPackDir + "/" + filename)
 			tfd.Close()
 			// 累计偏移量，读取下一个文件时知道是从哪里开始
 			SeekSize += int64(filesize)
@@ -222,6 +236,8 @@ func init() {
 	} else {
 		cmd.Parse(os.Args[2:])
 	}
+	// 生成压缩解压缩对象，用于全局的压缩解压缩
+	tg = tgz.NewTgzPacker()
 }
 
 // DelFile path为文件确定是否删除，如果为文件夹则退出脚本手动删除文件才行
